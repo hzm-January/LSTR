@@ -144,9 +144,9 @@ class SetCriterion(nn.Module):
         indices = self.matcher(outputs_without_aux, targets)
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_curves = sum(tgt.shape[0] for tgt in targets)
+        num_curves = sum(tgt.shape[0] for tgt in targets)  # 62
         num_curves = torch.as_tensor([num_curves], dtype=torch.float, device=next(iter(outputs.values())).device)
-        if is_dist_avail_and_initialized():
+        if is_dist_avail_and_initialized():  # False
             torch.distributed.all_reduce(num_curves)
         num_curves = torch.clamp(num_curves / get_world_size(), min=1).item()
 

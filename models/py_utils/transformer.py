@@ -45,23 +45,23 @@ class Transformer(nn.Module):
 
     def forward(self, src, mask, query_embed, pos_embed):
         # flatten NxCxHxW to HWxNxC
-        bs, c, h, w = src.shape
-        src = src.flatten(2).permute(2, 0, 1)
+        bs, c, h, w = src.shape  # (bs,32,12,20)
+        src = src.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,1,32)
 
-        pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
+        pos_embed = pos_embed.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,1,32)
 
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)  # (7,32) -> (7,1,32) -> (7,bs,32)
 
-        mask = mask.flatten(1)
+        mask = mask.flatten(1)  # (1,12,20) -> (1,240)
 
-        tgt = torch.zeros_like(query_embed)
+        tgt = torch.zeros_like(query_embed)  # (7,bs,32)
 
         memory, weights = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)
-
+        # memory (240,bs,32) weights (bs,240,240)
         hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
-                          pos=pos_embed, query_pos=query_embed)
+                          pos=pos_embed, query_pos=query_embed)  # tgt (7,bs,32) mask (1,240) pos_embed (240,1,32) query_embed (7,bs,32) -> hs(2,7,bs,32)
 
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights
+        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights  # memory(240,1,32) weights(1,240,240)
 
 
 class TransformerEncoder(nn.Module):
@@ -76,17 +76,17 @@ class TransformerEncoder(nn.Module):
                 mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None):
-        output = src
+        output = src  # (240,bs,32)
 
         for layer in self.layers:
 
             output, weights = layer(output, src_mask=mask,
-                           src_key_padding_mask=src_key_padding_mask, pos=pos)
+                           src_key_padding_mask=src_key_padding_mask, pos=pos)  # src_key_padding_mask(1,240) pos (240,1,32)
 
         if self.norm is not None:
             output = self.norm(output)
 
-        return output, weights
+        return output, weights  # output (240,bs,32) weights (bs,240,240)
 
 
 class TransformerDecoder(nn.Module):
@@ -105,8 +105,8 @@ class TransformerDecoder(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
-        output = tgt
-
+        output = tgt  # tgt (7,bs,32)
+        # memory (240,16,32)
         intermediate = []
 
         for layer in self.layers:
@@ -124,8 +124,8 @@ class TransformerDecoder(nn.Module):
                 intermediate.pop()
                 intermediate.append(output)
 
-        if self.return_intermediate:
-            return torch.stack(intermediate)
+        if self.return_intermediate: # return_intermediate True
+            return torch.stack(intermediate)  #[(7,16,32),(7,16,32)]->(2,7,16,32)
 
         return output
 
@@ -231,30 +231,30 @@ class TransformerDecoderLayer(nn.Module):
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
 
-        q = k = self.with_pos_embed(tgt, query_pos)
+        q = k = self.with_pos_embed(tgt, query_pos)  # tgt(7,bs,32) + query_pos(7,bs,32) -> (7,bs,32)
 
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
+        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,  # tgt2 (7,bs,32)
                               key_padding_mask=tgt_key_padding_mask)[0]
 
-        tgt = tgt + self.dropout1(tgt2)
+        tgt = tgt + self.dropout1(tgt2)  # tgt(7,bs,32) + (7,bs,32) -> (7,bs,32)
 
-        tgt = self.norm1(tgt)
+        tgt = self.norm1(tgt)  # (7,bs,32) -> (7,bs,32)
 
 
-        tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)[0]
+        tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),  # tgt(7,bs,32)  query_pos(7,bs,32)
+                                   key=self.with_pos_embed(memory, pos),  # memory(240,bs,32)  pos(240,bs,32)
+                                   value=memory, attn_mask=memory_mask,  # memory_mask None
+                                   key_padding_mask=memory_key_padding_mask)[0]  # memory_key_padding_mask (bs,240)
 
-        tgt = tgt + self.dropout2(tgt2)
+        tgt = tgt + self.dropout2(tgt2)  # (7,bs,32) -> (7,bs,32)
 
-        tgt = self.norm2(tgt)
+        tgt = self.norm2(tgt)  # (7,bs,32) -> (7,bs,32)
 
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))  # (7,bs,32) -> (7,bs,32)
 
-        tgt = tgt + self.dropout3(tgt2)
+        tgt = tgt + self.dropout3(tgt2)  # (7,bs,32) -> (7,bs,32)
 
-        tgt = self.norm3(tgt)
+        tgt = self.norm3(tgt)  # (7,bs,32) -> (7,bs,32)
 
         return tgt
 
@@ -288,7 +288,7 @@ class TransformerDecoderLayer(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None):
-        if self.normalize_before:
+        if self.normalize_before:  # normalize_before False
             return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
                                     tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
         return self.forward_post(tgt, memory, tgt_mask, memory_mask,

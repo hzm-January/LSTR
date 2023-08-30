@@ -182,27 +182,27 @@ class kp(nn.Module):
         images = xs[0]  # B 3 360 640
         masks  = xs[1]  # B 1 360 640
 
-        p = self.conv1(images)  # B 16 180 320
-        p = self.bn1(p)  # B 16 180 320
-        p = self.relu(p)  # B 16 180 320
-        p = self.maxpool(p)  # B 16 90 160
+        p = self.conv1(images)  # B 16 180 320  images (16,3,360,640)->(16,16,180,320)
+        p = self.bn1(p)  # B 16 180 320 (16,16,180,320) -> (16,16,180,320)
+        p = self.relu(p)  # B 16 180 320 (16,16,180,320) -> (16,16,180,320)
+        p = self.maxpool(p)  # B 16 90 160  (16,16,180,320) -> (16,16,90,160)
         p = self.layer1(p)  # B 16 90 160
         p = self.layer2(p)  # B 32 45 80
         p = self.layer3(p)  # B 64 23 40
-        p = self.layer4(p)  # B 128 12 20
-        pmasks = F.interpolate(masks[:, 0, :, :][None], size=p.shape[-2:]).to(torch.bool)[0]
-        pos    = self.position_embedding(p, pmasks)
-        hs, _, weights  = self.transformer(self.input_proj(p), pmasks, self.query_embed.weight, pos)
-        output_class    = self.class_embed(hs)
-        output_specific = self.specific_embed(hs)
-        output_shared   = self.shared_embed(hs)
-        output_shared   = torch.mean(output_shared, dim=-2, keepdim=True)
-        output_shared   = output_shared.repeat(1, 1, output_specific.shape[2], 1)
-        output_specific = torch.cat([output_specific[:, :, :, :2], output_shared, output_specific[:, :, :, 2:]], dim=-1)
-        out = {'pred_logits': output_class[-1], 'pred_curves': output_specific[-1]}
-        if self.aux_loss:
+        p = self.layer4(p)  # B 128 12 20 # p.shape[-2:](12,20)
+        pmasks = F.interpolate(masks[:, 0, :, :][None], size=p.shape[-2:]).to(torch.bool)[0]  # mask(1,3,360,640) mask[:, 0, :, :](1,360,640)  mask[:, 0, :, :][None](1,1,360,640)  (1,1,12,20)[0]=(bs,12,20)
+        pos    = self.position_embedding(p, pmasks)  # pmasks(bs,12,20) p(bs,128,12,20)  pos(bs,32,12,20)
+        hs, _, weights  = self.transformer(self.input_proj(p), pmasks, self.query_embed.weight, pos)  # hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights(7,32) pos(1,32,12,20)
+        output_class    = self.class_embed(hs)  # hs (2,bs,7,32) output_class  (2,bs,7,2) # models/py_utils/transformer.py forward(self, src, mask, query_embed, pos_embed)
+        output_specific = self.specific_embed(hs)  # hs (2,bs,7,32) output_specific (2,bs,7,4)
+        output_shared   = self.shared_embed(hs)  # output_shared (2,bs,7,4)
+        output_shared   = torch.mean(output_shared, dim=-2, keepdim=True)  # output_shared (2,bs,1,4)
+        output_shared   = output_shared.repeat(1, 1, output_specific.shape[2], 1)  # output_shared (2,bs,7,4)
+        output_specific = torch.cat([output_specific[:, :, :, :2], output_shared, output_specific[:, :, :, 2:]], dim=-1)  # output_specific(2,bs,7,4) output_shared (2,bs,7,4) -> (2,bs,7,8)
+        out = {'pred_logits': output_class[-1], 'pred_curves': output_specific[-1]}  # 只写入最后一层的输出，pred_logits[-1] (bs,7,2) pred_curves[-1] (bs,7,8)
+        if self.aux_loss:  # aux_loss True
             out['aux_outputs'] = self._set_aux_loss(output_class, output_specific)
-        return out, weights
+        return out, weights  # weights(bs,240,240)
 
     def _test(self, *xs, **kwargs):
         return self._train(*xs, **kwargs)
@@ -255,8 +255,8 @@ class AELoss(nn.Module):
                 outputs,
                 targets):
 
-        gt_cluxy = [tgt[0] for tgt in targets[1:]]
-        loss_dict, indices = self.criterion(outputs, gt_cluxy)
+        gt_cluxy = [tgt[0] for tgt in targets[1:]]  # targets list len=17  gt_cluxy list len =16, list element shape (4,115) or (3,115)
+        loss_dict, indices = self.criterion(outputs, gt_cluxy)  # gt_cluxy[(4,115) or (3,115),....16] outputs{'pred_logits':(bs,7,2),'pred_curves':(bs,7,8),'aux_outputs':[..1]}
         weight_dict = self.criterion.weight_dict
         losses = sum(loss_dict[k] * weight_dict[k] for k in loss_dict.keys() if k in weight_dict)
 

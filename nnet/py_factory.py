@@ -44,13 +44,13 @@ class NetworkFactory(object):
 
         module_file = "models.{}".format(system_configs.snapshot_name)
         # print("module_file: {}".format(module_file)) # models.CornerNet
-        nnet_module = importlib.import_module(module_file)
+        nnet_module = importlib.import_module(module_file)  # 'models.LSTR'
 
         self.model   = DummyModule(nnet_module.model(flag=flag))
         self.loss    = nnet_module.loss()
         self.network = Network(self.model, self.loss)
-        self.network = DataParallel(self.network, chunk_sizes=system_configs.chunk_sizes)
-        self.flag    = flag
+        self.network = DataParallel(self.network, chunk_sizes=system_configs.chunk_sizes)  # chunk_sizes 16
+        self.flag    = flag  # flag True
 
         # Count total parameters
         total_params = 0
