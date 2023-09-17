@@ -114,7 +114,7 @@ class kp(nn.Module):
                  attn_dim=None,
                  num_queries=None,
                  aux_loss=None,
-                 pos_type=None,
+                 pos_type=None,  # 'sine'
                  drop_out=0.1,
                  num_heads=None,
                  dim_feedforward=None,

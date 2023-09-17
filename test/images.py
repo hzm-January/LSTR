@@ -32,7 +32,7 @@ class PostProcess(nn.Module):
         return results
 
 def kp_detection(db, nnet, image_root, debug=False, evaluator=None):
-    input_size  = db.configs["input_size"]  # [h w]
+    input_size  = db.configs["input_size"]  # [h w] 360, 640
     image_dir = os.path.join(image_root, "images")
     result_dir = os.path.join(image_root, "detections")
     if not os.path.exists(result_dir):

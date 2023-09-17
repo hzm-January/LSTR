@@ -41,7 +41,9 @@ def kp_detection(db, k_ind):
         if transform:
             line_strings = db.lane_to_linestrings(item['old_anno']['lanes'])
             line_strings = LineStringsOnImage(line_strings, shape=img.shape)
-            img, line_strings, mask = db.transform(image=img, line_strings=line_strings, segmentation_maps=mask)
+            # TODO： 为什么下面这一行会产生三个结果，db.transform是数据增强？
+            #  db是db/tusimple.py中 TUSIMPLE 的对象
+            img, line_strings, mask = db.transform(image=img, line_strings=line_strings, segmentation_maps=mask)  # db/tusimple.py self.transform = iaa.Sequential([iaa.Sometimes(then_list=augmentations, p=self.aug_chance), transformations])
             line_strings.clip_out_of_image_()
             new_anno = {'path': item['path'], 'lanes': db.linestrings_to_lanes(line_strings)}
             new_anno['categories'] = item['categories']
@@ -77,6 +79,6 @@ def kp_detection(db, k_ind):
 
 
 def sample_data(db, k_ind):
-    return globals()[system_configs.sampling_function](db, k_ind)
+    return globals()[system_configs.sampling_function](db, k_ind)  # sampling_function: sample/tusimple.py kp_detection # db是db.tusimple TUSIMPLE对象
 
 

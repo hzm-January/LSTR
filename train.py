@@ -47,7 +47,7 @@ def prefetch_data(db, queue, sample_data):
     np.random.seed(os.getpid())
     while True:
         try:
-            data, ind = sample_data(db, ind)
+            data, ind = sample_data(db, ind)  # sample/tusimple.py sample_data
             queue.put(data)
         except Exception as e:
             traceback.print_exc()
@@ -66,7 +66,7 @@ def pin_memory(data_queue, pinned_data_queue, sema):
             return
 
 def init_parallel_jobs(dbs, queue, fn):
-    tasks = [Process(target=prefetch_data, args=(db, queue, fn)) for db in dbs]
+    tasks = [Process(target=prefetch_data, args=(db, queue, fn)) for db in dbs]  # db 为 db/tusimple.py TUSIMPLE 对象
     for task in tasks:
         task.daemon = True
         task.start()
@@ -217,7 +217,7 @@ if __name__ == "__main__":
 
     threads = args.threads  # 4 every 4 epoch shuffle the indices
     print("using {} threads".format(threads))
-    training_dbs  = [datasets[dataset](configs["db"], train_split) for _ in range(threads)]
+    training_dbs  = [datasets[dataset](configs["db"], train_split) for _ in range(threads)]  # datasets['TUSIMPLE']是TUSIMPLE，这步做的多个db.tusimple TUSIMPLE初始化
     validation_db = datasets[dataset](configs["db"], val_split)
 
     # print("system config...")
