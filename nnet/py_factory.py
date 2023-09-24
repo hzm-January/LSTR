@@ -18,13 +18,13 @@ class Network(nn.Module):
     def forward(self, iteration, save, viz_split,
                 xs, ys, **kwargs):
 
-        preds, weights = self.model(*xs, **kwargs)
+        preds, weights = self.model(xs, ys, **kwargs)
 
         loss  = self.loss(iteration,
                           save,
                           viz_split,
                           preds,
-                          ys,
+                          ys, #TODO: ys是target吗？
                           **kwargs)
         return loss
 
@@ -35,8 +35,8 @@ class DummyModule(nn.Module):
         super(DummyModule, self).__init__()
         self.module = model
 
-    def forward(self, *xs, **kwargs):
-        return self.module(*xs, **kwargs)
+    def forward(self, xs, ys, **kwargs):
+        return self.module(xs, ys, **kwargs)
 
 class NetworkFactory(object):
     def __init__(self, flag=False):
@@ -63,8 +63,10 @@ class NetworkFactory(object):
 
         # Count MACs when input is 360 x 640 x 3
         input_test = torch.randn(1, 3, 360, 640).cuda()
+        input_test_tag = torch.randn(1, 3, 115).cuda()
+        input_test_tag2 = torch.randn(1, 3, 115).cuda()
         input_mask = torch.randn(1, 3, 360, 640).cuda()
-        macs, params, = profile(self.model, inputs=(input_test, input_mask), verbose=False)
+        macs, params, = profile(self.model, inputs=([input_test, input_mask], [input_test_tag, input_test_tag2]), verbose=False)
         macs, _ = clever_format([macs, params], "%.3f")
         print('MACs: {}'.format(macs))
 
@@ -108,7 +110,7 @@ class NetworkFactory(object):
         ys = [y.cuda(non_blocking=True) for y in ys]
 
         self.optimizer.zero_grad()
-        loss_kp = self.network(iteration,
+        loss_kp = self.network(iteration,  # nnet/py_factory.py Network forward
                                save,
                                viz_split,
                                xs,

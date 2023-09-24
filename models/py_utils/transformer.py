@@ -43,11 +43,12 @@ class Transformer(nn.Module):
             if p.dim() > 1:
                 nn.init.xavier_uniform_(p)
 
-    def forward(self, src, mask, query_embed, pos_embed):  # mask = pmask , pos_embed = src 的 pos
+    def forward(self, src, latents_emb, mask, query_embed, pos_embed):  # mask = pmask , pos_embed = src 的 pos
         # flatten NxCxHxW to HWxNxC
         bs, c, h, w = src.shape  # (bs,32,12,20)
         src = src.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,bs,32)
-
+        latents_emb = latents_emb.permute(2, 0, 1)  # (240,bs,1)
+        src = src + latents_emb # TODO: 实验一：将latent与图像特征结合
         pos_embed = pos_embed.flatten(2).permute(2, 0, 1)  # (1,32,12,20) -> (1,32,240) -> (240,1,32)
 
         query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)  # (7,32) -> (7,1,32) -> (7,bs,32)
@@ -55,13 +56,30 @@ class Transformer(nn.Module):
         mask = mask.flatten(1)  # (1,12,20) -> (1,240)
 
         tgt = torch.zeros_like(query_embed)  # (7,bs,32)
-
+        # latents_emb = latents_emb.permute(2, 0, 1)  # (240,bs,1)
+        # tgt = tgt+latents_emb
         memory, weights = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)  # src (240,bs,32)
+        # tgt_mask = generate_square_subsequent_mask(len(tgt)).to(tgt.device)  # generate the causal mask
         # memory (240,bs,32) weights (bs,240,240)
-        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
-                          pos=pos_embed, query_pos=query_embed)  # tgt (7,bs,32) mask (1,240) pos_embed (240,1,32) query_embed (7,bs,32) -> hs(2,7,bs,32)
+        # hs = self.decoder(tgt, memory, tgt_mask=tgt_mask, memory_key_padding_mask=mask,
+        #                   pos=pos_embed, query_pos=query_embed)  # tgt (7,bs,32) mask (1,240) pos_embed (240,1,32) query_embed (7,bs,32) -> hs(2,7,bs,32)
 
-        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights  # hs(2,7,bs,32) memory(240,1,32) weights(1,240,240)
+        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+                          pos=pos_embed, query_pos=query_embed)
+        return hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h,
+                                                                w), weights  # hs(2,7,bs,32) memory(240,1,32) weights(1,240,240)
+
+
+def generate_square_subsequent_mask(sz):
+    r"""Generate a square mask for the sequence. The masked positions are filled with float('-inf').
+        Unmasked positions are filled with float(0.0).
+    """
+
+    # each token only can see tokens before them
+    mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
+    mask = mask.float().masked_fill(mask == 0, float(
+        '-inf')).masked_fill(mask == 1, float(0.0))
+    return mask
 
 
 class TransformerEncoder(nn.Module):
@@ -79,9 +97,9 @@ class TransformerEncoder(nn.Module):
         output = src  # (240,bs,32)
 
         for layer in self.layers:
-
             output, weights = layer(output, src_mask=mask,
-                           src_key_padding_mask=src_key_padding_mask, pos=pos)  # src_key_padding_mask(1,240) pos (240,1,32)
+                                    src_key_padding_mask=src_key_padding_mask,
+                                    pos=pos)  # src_key_padding_mask(1,240) pos (240,1,32)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -113,7 +131,7 @@ class TransformerDecoder(nn.Module):
             output = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
-                           memory_key_padding_mask=memory_key_padding_mask,
+                           memory_key_padding_mask=memory_key_padding_mask,  # (1,240)
                            pos=pos, query_pos=query_pos)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
@@ -124,8 +142,8 @@ class TransformerDecoder(nn.Module):
                 intermediate.pop()
                 intermediate.append(output)
 
-        if self.return_intermediate: # return_intermediate True
-            return torch.stack(intermediate)  #[(7,16,32),(7,16,32)]->(2,7,16,32)
+        if self.return_intermediate:  # return_intermediate True
+            return torch.stack(intermediate)  # [(7,16,32),(7,16,32)]->(2,7,16,32)
 
         return output
 
@@ -239,7 +257,6 @@ class TransformerDecoderLayer(nn.Module):
 
         tgt = self.norm1(tgt)  # (7,bs,32) -> (7,bs,32)
 
-
         tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),  # tgt(7,bs,32)  query_pos(7,bs,32)
                                    key=self.with_pos_embed(memory, pos),  # memory(240,bs,32)  pos(240,bs,32)
                                    value=memory, attn_mask=memory_mask,  # memory_mask None
@@ -306,7 +323,6 @@ def build_transformer(hidden_dim,
                       dec_layers,
                       pre_norm=False,
                       return_intermediate_dec=False):
-
     return Transformer(
         d_model=hidden_dim,
         dropout=dropout,

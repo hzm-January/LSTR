@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 import json
 import torch
 import numpy as np
@@ -96,8 +96,8 @@ def train(training_dbs, validation_db, start_iter=0, freeze=False):
     pinned_validation_queue = queue.Queue(5)
 
     # load data sampling function
-    data_file   = "sample.{}".format(training_dbs[0].data) # "sample.coco"
-    sample_data = importlib.import_module(data_file).sample_data
+    data_file   = "sample.{}".format(training_dbs[0].data) # "sample.coco" "sample.tusimple"
+    sample_data = importlib.import_module(data_file).sample_data # {"xs": [images, masks], "ys": [images, *gt_lanes]}, k_ind
     # print(type(sample_data)) # function
 
     # allocating resources for parallel reading
@@ -121,7 +121,7 @@ def train(training_dbs, validation_db, start_iter=0, freeze=False):
     validation_pin_thread.start()
 
     print("building model...")
-    nnet = NetworkFactory(flag=True)
+    nnet = NetworkFactory(flag=True) # nnet/py_factory.py
 
     if pretrained_model is not None:
         if not os.path.exists(pretrained_model):
@@ -155,7 +155,7 @@ def train(training_dbs, validation_db, start_iter=0, freeze=False):
             viz_split = 'train'
             save = True if (display and iteration % display == 0) else False
             (set_loss, loss_dict) \
-                = nnet.train(iteration, save, viz_split, **training)
+                = nnet.train(iteration, save, viz_split, **training)  # nnet/py_factory.py train
             (loss_dict_reduced, loss_dict_reduced_unscaled, loss_dict_reduced_scaled, loss_value) = loss_dict
             metric_logger.update(loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled)
             metric_logger.update(class_error=loss_dict_reduced['class_error'])

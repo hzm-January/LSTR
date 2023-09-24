@@ -51,13 +51,13 @@ def kp_detection(db, k_ind):
 
         # clip polys
         tgt_ids   = label[:, 0]
-        label = label[tgt_ids > 0]
+        label = label[tgt_ids > 0]  # (5,115) -> (4,115)
 
         # make lower the same
         label[:, 1][label[:, 1] < 0] = 1
         label[:, 1][...] = np.min(label[:, 1])
 
-        label = np.stack([label] * batch_size, axis=0)
+        label = np.stack([label] * batch_size, axis=0)  # (3,115) -> (16,3,115)
         gt_lanes.append(torch.from_numpy(label.astype(np.float32)))
 
         img = (img / 255.).astype(np.float32)
