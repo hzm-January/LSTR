@@ -131,7 +131,7 @@ class kp(nn.Module):
                  ):
         super(kp, self).__init__()
         self.flag = flag
-        self.latent_emb = Latent_Embedding()
+        self.latent_emb = Latent_Embedding(self.flag)
         # above all waste not used
         self.norm_layer = norm_layer
 
@@ -198,7 +198,7 @@ class kp(nn.Module):
         pos    = self.position_embedding(p, pmasks)  # pmasks(bs,12,20) p(bs,128,12,20)  pos(bs,32,12,20)
         #TODO: p + lane embedding
         lanes_emb = self.latent_emb(lane_num)
-        lanes_emb.unsqueeze(1) # (bs,1,240)
+        lanes_emb.unsqueeze(1)  # (bs,1,240)
         hs, _, weights  = self.transformer(self.input_proj(p), lanes_emb, pmasks, self.query_embed.weight, pos)  # hs.transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h, w), weights(7,32) pos(1,32,12,20)
         output_class    = self.class_embed(hs)  # hs (2,bs,7,32) output_class  (2,bs,7,2) # models/py_utils/transformer.py forward(self, src, mask, query_embed, pos_embed)
         output_specific = self.specific_embed(hs)  # hs (2,bs,7,32) output_specific (2,bs,7,4)

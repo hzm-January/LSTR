@@ -150,7 +150,8 @@ class NetworkFactory(object):
     def test(self, xs, **kwargs):
         with torch.no_grad():
             # xs = [x.cuda(non_blocking=True) for x in xs]
-            return self.model(*xs, **kwargs)
+            ys=[]
+            return self.model(*xs, ys, **kwargs)
 
     def set_lr(self, lr):
         print("setting learning rate to: {}".format(lr))

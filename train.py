@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 import json
 import torch
 import numpy as np
@@ -48,7 +48,7 @@ def prefetch_data(db, queue, sample_data):
     while True:
         try:
             data, ind = sample_data(db, ind)  # sample/tusimple.py sample_data
-            queue.put(data)
+            queue.put(data)  # 放入队列，之后从队列中取出。
         except Exception as e:
             traceback.print_exc()
             raise e
@@ -101,7 +101,7 @@ def train(training_dbs, validation_db, start_iter=0, freeze=False):
     # print(type(sample_data)) # function
 
     # allocating resources for parallel reading
-    training_tasks   = init_parallel_jobs(training_dbs, training_queue, sample_data)
+    training_tasks   = init_parallel_jobs(training_dbs, training_queue, sample_data)  # 调用 train.py prefetch_data
     if val_iter:
         validation_tasks = init_parallel_jobs([validation_db], validation_queue, sample_data)
 

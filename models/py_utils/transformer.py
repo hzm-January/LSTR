@@ -56,8 +56,8 @@ class Transformer(nn.Module):
         mask = mask.flatten(1)  # (1,12,20) -> (1,240)
 
         tgt = torch.zeros_like(query_embed)  # (7,bs,32)
-        # latents_emb = latents_emb.permute(2, 0, 1)  # (240,bs,1)
-        # tgt = tgt+latents_emb
+        # latents_emb = latents_emb.permute(1, 0, 2)  # (bs,1,32) -> (1,bs,32)
+        # tgt = tgt + latents_emb  # TODO: 实验二：将latent与query结合
         memory, weights = self.encoder(src, src_key_padding_mask=mask, pos=pos_embed)  # src (240,bs,32)
         # tgt_mask = generate_square_subsequent_mask(len(tgt)).to(tgt.device)  # generate the causal mask
         # memory (240,bs,32) weights (bs,240,240)
